@@ -568,6 +568,29 @@
             border-color: #edbdb1;
         }
 
+        input.input-error, select.input-error {
+            border-color: #c6533f;
+            background: #fff8f6;
+        }
+
+        .field-error, .row-error {
+            display: block;
+            margin-top: 5px;
+            color: #a43d2c;
+            font-family: 'Trebuchet MS', sans-serif;
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+
+        .row-error {
+            grid-column: 1 / -1;
+            margin: -2px 0 0;
+        }
+
+        .item-row .field-error {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 16px 12px 36px;
@@ -697,7 +720,7 @@
                     </div>
                     <div class="form-group">
                         <label for="product-price">Price *</label>
-                        <input type="number" id="product-price" step="0.01" required>
+                        <input type="number" id="product-price" min="0" step="0.01" required>
                     </div>
                     <div class="form-group">
                         <label for="product-unit">Unit</label>
@@ -757,8 +780,8 @@
                             <select class="item-product" onchange="updateItemPrice(this)">
                                 <option value="">Select Product</option>
                             </select>
-                            <input type="number" class="item-quantity" placeholder="Quantity" value="1" onchange="calculateItemTotal(this)">
-                            <input type="number" class="item-price" placeholder="Price" step="0.01" onchange="calculateItemTotal(this)">
+                            <input type="number" class="item-quantity" min="0.01" step="0.01" placeholder="Quantity" value="1" onchange="calculateItemTotal(this)">
+                            <input type="number" class="item-price" min="0" step="0.01" placeholder="Price" onchange="calculateItemTotal(this)">
                             <input type="number" class="item-total" placeholder="Total" readonly>
                             <button type="button" class="btn btn-danger" onclick="removeItem(this)">Remove</button>
                         </div>
@@ -773,7 +796,7 @@
                     </div>
                     <div class="summary-row">
                         <span>Tax (%):</span>
-                        <input type="number" id="bill-tax" value="0" step="0.01" onchange="calculateBillTotal()" style="width: 100px; text-align: right;">
+                        <input type="number" id="bill-tax" min="0" max="100" value="0" step="0.01" onchange="calculateBillTotal()" style="width: 100px; text-align: right;">
                     </div>
                     <div class="summary-row">
                         <span>Tax Amount:</span>
@@ -855,7 +878,7 @@
                     </div>
                     <div class="summary-row">
                         <span>Tax (%):</span>
-                        <input type="number" id="edit-bill-tax" value="0" step="0.01" onchange="calculateEditBillTotal()" style="width: 100px; text-align: right;">
+                        <input type="number" id="edit-bill-tax" min="0" max="100" value="0" step="0.01" onchange="calculateEditBillTotal()" style="width: 100px; text-align: right;">
                     </div>
                     <div class="summary-row">
                         <span>Tax Amount:</span>
@@ -897,7 +920,7 @@
                 <form id="payment-form">
                     <div class="form-group">
                         <label for="payment-amount">Payment Amount *</label>
-                        <input type="number" id="payment-amount" step="0.01" required>
+                        <input type="number" id="payment-amount" min="0.01" step="0.01" required>
                     </div>
                     <div class="form-group">
                         <label for="payment-date">Payment Date *</label>
@@ -1063,6 +1086,57 @@
             return `₹${parseFloat(amount).toFixed(2)}`;
         }
 
+        function setInlineError(input, message) {
+            input.classList.add('input-error');
+            input.setCustomValidity(message);
+            let error = input.parentElement.querySelector('.field-error');
+            if (!error) {
+                error = document.createElement('small');
+                error.className = 'field-error';
+                input.insertAdjacentElement('afterend', error);
+            }
+            error.textContent = message;
+        }
+
+        function clearInlineError(input) {
+            input.classList.remove('input-error');
+            input.setCustomValidity('');
+            const error = input.parentElement.querySelector('.field-error');
+            if (error) error.remove();
+        }
+
+        function validateNumber(input, label, minimum, maximum = Infinity) {
+            const value = Number(input.value);
+            if (input.value === '' || !Number.isFinite(value) || value < minimum || value > maximum) {
+                const range = maximum === Infinity ? `at least ${minimum}` : `between ${minimum} and ${maximum}`;
+                setInlineError(input, `${label} must be ${range}.`);
+                return false;
+            }
+            clearInlineError(input);
+            return true;
+        }
+
+        function validateItemRows(containerSelector, quantityClass, priceClass) {
+            let valid = true;
+            document.querySelectorAll(`${containerSelector} .item-row`).forEach(row => {
+                const quantity = row.querySelector(quantityClass);
+                const price = row.querySelector(priceClass);
+                const rowError = row.querySelector('.row-error');
+                if (rowError) rowError.remove();
+
+                const quantityValid = validateNumber(quantity, 'Quantity', 0.01);
+                const priceValid = validateNumber(price, 'Price', 0);
+                if (!quantityValid || !priceValid) {
+                    valid = false;
+                    const message = document.createElement('small');
+                    message.className = 'row-error';
+                    message.textContent = 'Enter a valid quantity and non-negative price.';
+                    row.appendChild(message);
+                }
+            });
+            return valid;
+        }
+
         // Tab management
         function showTab(tabName) {
             // Hide all tabs
@@ -1159,6 +1233,9 @@
         // Product Management
         document.getElementById('product-form').addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const priceInput = document.getElementById('product-price');
+            if (!validateNumber(priceInput, 'Price', 0)) return;
             
             const product = {
                 name: document.getElementById('product-name').value,
@@ -1239,8 +1316,8 @@
                 <select class="item-product" onchange="updateItemPrice(this)">
                     <option value="">Select Product</option>
                 </select>
-                <input type="number" class="item-quantity" placeholder="Quantity" value="1" onchange="calculateItemTotal(this)">
-                <input type="number" class="item-price" placeholder="Price" step="0.01" onchange="calculateItemTotal(this)">
+                            <input type="number" class="item-quantity" min="0.01" step="0.01" placeholder="Quantity" value="1" onchange="calculateItemTotal(this)">
+                            <input type="number" class="item-price" min="0" step="0.01" placeholder="Price" onchange="calculateItemTotal(this)">
                 <input type="number" class="item-total" placeholder="Total" readonly>
                 <button type="button" class="btn btn-danger" onclick="removeItem(this)">Remove</button>
             `;
@@ -1273,6 +1350,7 @@
         }
 
         function calculateBillTotal() {
+            validateNumber(document.getElementById('bill-tax'), 'Tax', 0, 100);
             const totals = Array.from(document.querySelectorAll('.item-total'))
                 .map(input => parseFloat(input.value) || 0);
             
@@ -1305,6 +1383,10 @@
 
         document.getElementById('bill-form').addEventListener('submit', function(e) {
             e.preventDefault();
+
+            const itemsValid = validateItemRows('#bill-items-container', '.item-quantity', '.item-price');
+            const taxValid = validateNumber(document.getElementById('bill-tax'), 'Tax', 0, 100);
+            if (!itemsValid || !taxValid) return;
             
             const customerId = document.getElementById('bill-customer').value;
             if (!customerId) {
@@ -1532,6 +1614,9 @@
             e.preventDefault();
             
             if (!currentBillId) return;
+
+            const amountInput = document.getElementById('payment-amount');
+            if (!validateNumber(amountInput, 'Payment amount', 0.01)) return;
             
             const payment = {
                 amount: parseFloat(document.getElementById('payment-amount').value),
@@ -1544,6 +1629,7 @@
             const balance = bill.total - (bill.totalPaid || 0);
             
             if (payment.amount > balance) {
+                setInlineError(amountInput, 'Payment amount cannot exceed the balance.');
                 showAlert('Payment amount cannot exceed the balance', 'error');
                 return;
             }
@@ -1677,8 +1763,8 @@
                     <select class="edit-item-product" onchange="updateEditItemPrice(this)">
                         <option value="">Select Product</option>
                     </select>
-                    <input type="number" class="edit-item-quantity" placeholder="Quantity" value="${item.quantity}" onchange="calculateEditItemTotal(this)">
-                    <input type="number" class="edit-item-price" placeholder="Price" step="0.01" value="${item.price}" onchange="calculateEditItemTotal(this)">
+                    <input type="number" class="edit-item-quantity" min="0.01" step="0.01" placeholder="Quantity" value="${item.quantity}" onchange="calculateEditItemTotal(this)">
+                    <input type="number" class="edit-item-price" min="0" step="0.01" placeholder="Price" value="${item.price}" onchange="calculateEditItemTotal(this)">
                     <input type="number" class="edit-item-total" placeholder="Total" value="${item.total}" readonly>
                     <button type="button" class="btn btn-danger" onclick="removeEditItem(this)">Remove</button>
                 `;
@@ -1717,8 +1803,8 @@
                 <select class="edit-item-product" onchange="updateEditItemPrice(this)">
                     <option value="">Select Product</option>
                 </select>
-                <input type="number" class="edit-item-quantity" placeholder="Quantity" value="1" onchange="calculateEditItemTotal(this)">
-                <input type="number" class="edit-item-price" placeholder="Price" step="0.01" onchange="calculateEditItemTotal(this)">
+                <input type="number" class="edit-item-quantity" min="0.01" step="0.01" placeholder="Quantity" value="1" onchange="calculateEditItemTotal(this)">
+                <input type="number" class="edit-item-price" min="0" step="0.01" placeholder="Price" onchange="calculateEditItemTotal(this)">
                 <input type="number" class="edit-item-total" placeholder="Total" readonly>
                 <button type="button" class="btn btn-danger" onclick="removeEditItem(this)">Remove</button>
             `;
@@ -1751,6 +1837,7 @@
         }
 
         function calculateEditBillTotal() {
+            validateNumber(document.getElementById('edit-bill-tax'), 'Tax', 0, 100);
             const totals = Array.from(document.querySelectorAll('.edit-item-total'))
                 .map(input => parseFloat(input.value) || 0);
             
@@ -1775,6 +1862,10 @@
             e.preventDefault();
             
             if (!editingBillId) return;
+
+            const itemsValid = validateItemRows('#edit-bill-items-container', '.edit-item-quantity', '.edit-item-price');
+            const taxValid = validateNumber(document.getElementById('edit-bill-tax'), 'Tax', 0, 100);
+            if (!itemsValid || !taxValid) return;
             
             const customerId = document.getElementById('edit-bill-customer').value;
             if (!customerId) {
